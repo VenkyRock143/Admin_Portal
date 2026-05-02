@@ -1,7 +1,8 @@
 
 import os
 import sqlite3
-from datetime import timedelta
+from werkzeug.security import generate_password_hash
+from datetime import timedelta,datetime
 from flask import (
     Flask, send_from_directory, g,
     request, jsonify
@@ -63,9 +64,25 @@ def server_index():
      return send_from_directory(app.static_folder, "admin.html")
  
 # ═══════════════════════════════════════════════
-# Task 1 — Auth
+# Task 1 — Admin Sign Up
 # ═══════════════════════════════════════════════
+@app.route("/api/signup", methods=["POST"])
+def signup():
+    data = request.get_json()
 
+    db = get_db()
+    db.execute(
+        "INSERT INTO admins (full_name, email, password_hash, created_at) VALUES (?, ?, ?, ?)",
+        (
+            data["full_name"],
+            data["email"],
+            generate_password_hash(data["password"]),
+            datetime.now().isoformat()
+        )
+    )
+    db.commit()
+
+    return jsonify({"message": "Signup successful"})
  
  
 if __name__ == "__main__":
