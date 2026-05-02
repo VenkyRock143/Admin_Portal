@@ -182,7 +182,7 @@ def logout():
     session.clear()
     return jsonify({"message":"Logged out"})
  
- # ═══════════════════════════════════════════════
+# ═══════════════════════════════════════════════
 # Task 1 — Forgot Password
 # ═══════════════════════════════════════════════
 
@@ -205,6 +205,31 @@ def forgot():
 
     return jsonify({"message":"If email exists, reset sent"})
  
+# ═══════════════════════════════════════════════
+# Reset
+# ═══════════════════════════════════════════════
+@app.route("/api/reset-password", methods=["POST"])
+def reset():
+    data=request.get_json()
+    db=get_db()
+
+    row=db.execute("SELECT * FROM password_reset_tokens WHERE token=? AND used=0",
+                   (data["token"],)).fetchone()
+
+    if not row:
+        return jsonify({"error":"Invalid token"}),400
+
+    if datetime.now(timezone.utc)>datetime.fromisoformat(row["expires_at"]):
+        return jsonify({"error":"Expired"}),400
+
+    db.execute("UPDATE admins SET password_hash=? WHERE id=?",
+               (generate_password_hash(data["password"]),row["admin_id"]))
+
+    db.execute("UPDATE password_reset_tokens SET used=1 WHERE id=?",(row["id"],))
+    db.commit()
+
+    return jsonify({"message":"Password reset"})
+ 
 # =========================
 # OPPORTUNITIES
 # =========================
@@ -214,71 +239,84 @@ def forgot():
 # ═══════════════════════════════════════════════
 
 @app.route("/api/opportunities", methods=["POST"])
-def create_opportunity():
-    data = request.get_json()
+@login_required
+def create():
+    data=request.get_json()
 
-    db = get_db()
-    db.execute(
-        "INSERT INTO opportunities (admin_id, name, category) VALUES (?, ?, ?)",
-        (session["admin_id"], data["name"], data["category"])
-    )
+    err=validate_opportunity(data)
+    if err:
+        return jsonify({"error":err}),400
+
+    db=get_db()
+    db.execute("""INSERT INTO opportunities
+    VALUES(NULL,?,?,?,?,?,?,?,?,?,?)""",
+    (session["admin_id"],data["name"],data["duration"],data["start_date"],
+     data["description"],data["skills_to_gain"],data["category"],
+     data["future_opportunities"],now(),now()))
+
     db.commit()
-
-    return jsonify({"message": "Created"})
+    return jsonify({"message":"Created"})
 
 # ═══════════════════════════════════════════════
 # Task 2 — View All Opportunities
 # ═══════════════════════════════════════════════
 @app.route("/api/opportunities", methods=["GET"])
-def get_all():
-    db = get_db()
-    rows = db.execute(
-        "SELECT * FROM opportunities WHERE admin_id=?",
-        (session["admin_id"],)
-    ).fetchall()
-
+@login_required
+def all():
+    db=get_db()
+    rows=db.execute("SELECT * FROM opportunities WHERE admin_id=?",
+                    (session["admin_id"],)).fetchall()
     return jsonify([dict(r) for r in rows])
 # ═══════════════════════════════════════════════
 # Task 2 — View Opportunity Details
 # ═══════════════════════════════════════════════
 @app.route("/api/opportunities/<int:id>", methods=["GET"])
-def get_one(id):
-    db = get_db()
-    row = db.execute(
-        "SELECT * FROM opportunities WHERE id=? AND admin_id=?",
-        (id, session["admin_id"])
-    ).fetchone()
-
+@login_required
+def one(id):
+    row=get_owned(id)
     if not row:
-        return jsonify({"error": "Not found"}), 404
-
+        return jsonify({"error":"Not found"}),404
     return jsonify(dict(row))
+
 # ═══════════════════════════════════════════════
 # Task 2 — Edit an Opportunity
 # ═══════════════════════════════════════════════
 @app.route("/api/opportunities/<int:id>", methods=["PUT"])
+@login_required
 def update(id):
-    data = request.get_json()
+    if not get_owned(id):
+        return jsonify({"error":"Not found"}),404
 
-    db = get_db()
-    db.execute(
-        "UPDATE opportunities SET name=?, category=? WHERE id=?",
-        (data["name"], data["category"], id)
-    )
+    data=request.get_json()
+    err=validate_opportunity(data)
+    if err:
+        return jsonify({"error":err}),400
+
+    db=get_db()
+    db.execute("""UPDATE opportunities SET
+    name=?,duration=?,start_date=?,description=?,skills_to_gain=?,
+    category=?,future_opportunities=?,updated_at=? WHERE id=?""",
+    (data["name"],data["duration"],data["start_date"],data["description"],
+     data["skills_to_gain"],data["category"],data["future_opportunities"],
+     now(),id))
     db.commit()
 
-    return jsonify({"message": "Updated"})
+    return jsonify({"message":"Updated"})
  
 # ═══════════════════════════════════════════════
 # Task 2 — Delete an Opportunity
 # ═══════════════════════════════════════════════ 
 @app.route("/api/opportunities/<int:id>", methods=["DELETE"])
+@login_required
 def delete(id):
-    db = get_db()
-    db.execute("DELETE FROM opportunities WHERE id=?", (id,))
+    if not get_owned(id):
+        return jsonify({"error":"Not found"}),404
+
+    db=get_db()
+    db.execute("DELETE FROM opportunities WHERE id=?",(id,))
     db.commit()
 
-    return jsonify({"message": "Deleted"})
+    return jsonify({"message":"Deleted"})
  
 if __name__ == "__main__":
     init_db()
