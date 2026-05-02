@@ -172,7 +172,21 @@ def get_one(id):
         return jsonify({"error": "Not found"}), 404
 
     return jsonify(dict(row))
- 
+# ═══════════════════════════════════════════════
+# Task 2 — Edit an Opportunity
+# ═══════════════════════════════════════════════
+@app.route("/api/opportunities/<int:id>", methods=["PUT"])
+def update(id):
+    data = request.get_json()
+
+    db = get_db()
+    db.execute(
+        "UPDATE opportunities SET name=?, category=? WHERE id=?",
+        (data["name"], data["category"], id)
+    )
+    db.commit()
+
+    return jsonify({"message": "Updated"})
  
  
  
