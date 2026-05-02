@@ -1,8 +1,10 @@
 
 import os
+import sqlite3
 from datetime import timedelta
 from flask import (
-    Flask, send_from_directory, g
+    Flask, send_from_directory, g,
+    request, jsonify
 )
 from pathlib import Path
 
@@ -30,7 +32,7 @@ app.config.update(
 # ─────────────────────────────────────────────
 def get_db():
     if "db" not in g:
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(str(DB_PATH))
         conn.row_factory = sqlite3.Row
         g.db = conn
     return g.db
@@ -42,14 +44,15 @@ def close_db(exception=None):
         db.close()
         
 def init_db():
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.execute("""
+    with sqlite3.connect(str(DB_PATH)) as conn:
+        conn.executescript("""
         CREATE TABLE IF NOT EXISTS admins (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             full_name TEXT,
             email TEXT UNIQUE,
-            password TEXT
-        )
+            password_hash TEXT,
+            created_at TEXT
+        );
         """)
 
 # ─────────────────────────────────────────────
@@ -58,6 +61,12 @@ def init_db():
 @app.route("/")
 def server_index():
      return send_from_directory(app.static_folder, "admin.html")
+ 
+# ═══════════════════════════════════════════════
+# Task 1 — Auth
+# ═══════════════════════════════════════════════
+
+ 
  
 if __name__ == "__main__":
     init_db()
