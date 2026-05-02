@@ -1,11 +1,11 @@
 
 import os
 import sqlite3
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import timedelta,datetime
 from flask import (
     Flask, send_from_directory, g,
-    request, jsonify
+    request, jsonify, session
 )
 from pathlib import Path
 
@@ -27,6 +27,7 @@ app.config.update(
     SECRET_KEY=os.environ.get("SECRET_KEY", "dev-secret"),
     PERMANENT_SESSION_LIFETIME=timedelta(days=30),
 )
+app.config["SECRET_KEY"] = "secret"
 
 # ─────────────────────────────────────────────
 # Database Layer
@@ -83,6 +84,30 @@ def signup():
     db.commit()
 
     return jsonify({"message": "Signup successful"})
+ 
+# ═══════════════════════════════════════════════
+# Task 1 — Admin Login + Session
+# ═══════════════════════════════════════════════
+@app.route("/api/login", methods=["POST"])
+def login():
+    data = request.get_json()
+
+    db = get_db()
+    user = db.execute(
+        "SELECT * FROM admins WHERE email=?",
+        (data["email"],)
+    ).fetchone()
+
+    if not user or not check_password_hash(user["password_hash"], data["password"]):
+        return jsonify({"error": "Invalid credentials"}), 401
+
+    session["admin_id"] = user["id"]
+
+    return jsonify({"message": "Login success"})
+ 
+ 
+ 
+ 
  
  
 if __name__ == "__main__":
