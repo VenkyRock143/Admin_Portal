@@ -124,6 +124,23 @@ def forgot():
 
     return jsonify({"message": "If email exists, reset link sent"})
  
+# =========================
+# OPPORTUNITIES
+# =========================
+@app.route("/api/opportunities", methods=["POST"])
+def create_opportunity():
+    data = request.get_json()
+
+    db = get_db()
+    db.execute(
+        "INSERT INTO opportunities (admin_id, name, category) VALUES (?, ?, ?)",
+        (session["admin_id"], data["name"], data["category"])
+    )
+    db.commit()
+
+    return jsonify({"message": "Created"})
+
+
  
  
  
