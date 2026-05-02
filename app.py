@@ -56,6 +56,12 @@ def init_db():
             password_hash TEXT,
             created_at TEXT
         );
+           CREATE TABLE IF NOT EXISTS opportunities (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admin_id INTEGER,
+            name TEXT,
+            category TEXT
+        );
         """)
 
 # ─────────────────────────────────────────────
