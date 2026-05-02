@@ -2,13 +2,15 @@
 import os
 import sqlite3
 import uuid
+import re
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import timedelta,datetime
+from datetime import timedelta, datetime, timezone
 from flask import (
     Flask, send_from_directory, g,
     request, jsonify, session
 )
 from pathlib import Path
+from functools import wraps
 
 
 # ─────────────────────────────────────────────
@@ -25,10 +27,12 @@ app = Flask(
 
 
 app.config.update(
-    SECRET_KEY=os.environ.get("SECRET_KEY", "dev-secret"),
+    SECRET_KEY="dev-secret",
     PERMANENT_SESSION_LIFETIME=timedelta(days=30),
 )
-app.config["SECRET_KEY"] = "secret"
+
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+VALID_CATEGORIES = {"Technology","Business","Design","Marketing","Data Science","Other"}
 
 # ─────────────────────────────────────────────
 # Database Layer
@@ -37,6 +41,7 @@ def get_db():
     if "db" not in g:
         conn = sqlite3.connect(str(DB_PATH))
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON")
         g.db = conn
     return g.db
 
@@ -45,32 +50,80 @@ def close_db(exception=None):
     db = g.pop("db", None)
     if db:
         db.close()
-        
+
 def init_db():
     with sqlite3.connect(str(DB_PATH)) as conn:
         conn.executescript("""
+        PRAGMA foreign_keys = ON;
+
         CREATE TABLE IF NOT EXISTS admins (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            full_name TEXT,
-            email TEXT UNIQUE,
-            password_hash TEXT,
-            created_at TEXT
+            full_name TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            created_at TEXT NOT NULL
         );
-           CREATE TABLE IF NOT EXISTS opportunities (
+
+        CREATE TABLE IF NOT EXISTS password_reset_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            token TEXT UNIQUE,
+            admin_id INTEGER,
+            expires_at TEXT,
+            used INTEGER DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS opportunities (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             admin_id INTEGER,
             name TEXT,
-            category TEXT
+            duration TEXT,
+            start_date TEXT,
+            description TEXT,
+            skills_to_gain TEXT,
+            category TEXT,
+            future_opportunities TEXT,
+            created_at TEXT,
+            updated_at TEXT
         );
         """)
+
+# ─────────────────────────────────────────────
+# Helpers
+# ─────────────────────────────────────────────
+def now():
+    return datetime.now(timezone.utc).isoformat()
+
+def login_required(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if "admin_id" not in session:
+            return jsonify({"error": "Authentication required"}), 401
+        return f(*args, **kwargs)
+    return wrapper
+
+def validate_opportunity(data):
+    required = ["name","duration","start_date","description","skills_to_gain","category","future_opportunities"]
+    for f in required:
+        if not data.get(f):
+            return f"{f} is required"
+    if data["category"] not in VALID_CATEGORIES:
+        return "Invalid category"
+    return None
+
+def get_owned(id):
+    db = get_db()
+    return db.execute(
+        "SELECT * FROM opportunities WHERE id=? AND admin_id=?",
+        (id, session["admin_id"])
+    ).fetchone()
 
 # ─────────────────────────────────────────────
 # Serve Frontend UI
 # ─────────────────────────────────────────────
 @app.route("/")
-def server_index():
-     return send_from_directory(app.static_folder, "admin.html")
- 
+def index():
+    return send_from_directory(app.static_folder, "admin.html")
+
 # ═══════════════════════════════════════════════
 # Task 1 — Admin Sign Up
 # ═══════════════════════════════════════════════
@@ -78,20 +131,35 @@ def server_index():
 def signup():
     data = request.get_json()
 
-    db = get_db()
+    full_name = data.get("full_name","").strip()
+    email = data.get("email","").strip().lower()
+    password = data.get("password","")
+    confirm = data.get("confirm_password","")
+
+    if not all([full_name,email,password,confirm]):
+        return jsonify({"error":"All fields required"}),400
+
+    if not EMAIL_RE.match(email):
+        return jsonify({"error":"Invalid email"}),400
+
+    if len(password)<8:
+        return jsonify({"error":"Password must be 8+ chars"}),400
+
+    if password!=confirm:
+        return jsonify({"error":"Passwords mismatch"}),400
+
+    db=get_db()
+
+    if db.execute("SELECT id FROM admins WHERE email=?",(email,)).fetchone():
+        return jsonify({"error":"Email exists"}),409
+
     db.execute(
-        "INSERT INTO admins (full_name, email, password_hash, created_at) VALUES (?, ?, ?, ?)",
-        (
-            data["full_name"],
-            data["email"],
-            generate_password_hash(data["password"]),
-            datetime.now().isoformat()
-        )
+        "INSERT INTO admins VALUES (NULL,?,?,?,?)",
+        (full_name,email,generate_password_hash(password),now())
     )
     db.commit()
 
-    return jsonify({"message": "Signup successful"})
- 
+    return jsonify({"message":"Signup successful"})
 # ═══════════════════════════════════════════════
 # Task 1 — Admin Login + Session
 # ═══════════════════════════════════════════════
@@ -188,27 +256,16 @@ def update(id):
 
     return jsonify({"message": "Updated"})
  
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
+# ═══════════════════════════════════════════════
+# Task 2 — Delete an Opportunity
+# ═══════════════════════════════════════════════ 
+@app.route("/api/opportunities/<int:id>", methods=["DELETE"])
+def delete(id):
+    db = get_db()
+    db.execute("DELETE FROM opportunities WHERE id=?", (id,))
+    db.commit()
+
+    return jsonify({"message": "Deleted"})
  
 if __name__ == "__main__":
     init_db()
