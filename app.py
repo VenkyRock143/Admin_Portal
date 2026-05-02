@@ -161,24 +161,26 @@ def signup():
 
     return jsonify({"message":"Signup successful"})
 # ═══════════════════════════════════════════════
-# Task 1 — Admin Login + Session
+# Task 1 — Admin Login + Session & Logout
 # ═══════════════════════════════════════════════
 @app.route("/api/login", methods=["POST"])
 def login():
-    data = request.get_json()
+    data=request.get_json()
 
-    db = get_db()
-    user = db.execute(
-        "SELECT * FROM admins WHERE email=?",
-        (data["email"],)
-    ).fetchone()
+    db=get_db()
+    user=db.execute("SELECT * FROM admins WHERE email=?",(data["email"],)).fetchone()
 
-    if not user or not check_password_hash(user["password_hash"], data["password"]):
-        return jsonify({"error": "Invalid credentials"}), 401
+    if not user or not check_password_hash(user["password_hash"],data["password"]):
+        return jsonify({"error":"Invalid credentials"}),401
 
-    session["admin_id"] = user["id"]
+    session["admin_id"]=user["id"]
+    return jsonify({"message":"Login success"})
 
-    return jsonify({"message": "Login success"})
+@app.route("/api/logout", methods=["POST"])
+@login_required
+def logout():
+    session.clear()
+    return jsonify({"message":"Logged out"})
  
  # ═══════════════════════════════════════════════
 # Task 1 — Forgot Password
