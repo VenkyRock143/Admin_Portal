@@ -188,11 +188,22 @@ def logout():
 
 @app.route("/api/forgot-password", methods=["POST"])
 def forgot():
-    data = request.get_json()
-    token = uuid.uuid4().hex
-    print("Reset token:", token)
+    data=request.get_json()
+    db=get_db()
 
-    return jsonify({"message": "If email exists, reset link sent"})
+    user=db.execute("SELECT id FROM admins WHERE email=?",(data["email"],)).fetchone()
+
+    if user:
+        token=uuid.uuid4().hex
+        expiry=(datetime.now(timezone.utc)+timedelta(hours=1)).isoformat()
+
+        db.execute("INSERT INTO password_reset_tokens VALUES(NULL,?,?,?,0)",
+                   (token,user["id"],expiry))
+        db.commit()
+
+        print("Reset:",token)
+
+    return jsonify({"message":"If email exists, reset sent"})
  
 # =========================
 # OPPORTUNITIES
