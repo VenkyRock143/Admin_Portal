@@ -127,6 +127,11 @@ def forgot():
 # =========================
 # OPPORTUNITIES
 # =========================
+
+# ═══════════════════════════════════════════════
+# Task 2 — Add a New Opportunity
+# ═══════════════════════════════════════════════
+
 @app.route("/api/opportunities", methods=["POST"])
 def create_opportunity():
     data = request.get_json()
@@ -140,6 +145,18 @@ def create_opportunity():
 
     return jsonify({"message": "Created"})
 
+# ═══════════════════════════════════════════════
+# Task 2 — View All Opportunities
+# ═══════════════════════════════════════════════
+@app.route("/api/opportunities", methods=["GET"])
+def get_all():
+    db = get_db()
+    rows = db.execute(
+        "SELECT * FROM opportunities WHERE admin_id=?",
+        (session["admin_id"],)
+    ).fetchall()
+
+    return jsonify([dict(r) for r in rows])
 
  
  
