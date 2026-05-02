@@ -1,6 +1,7 @@
 
 import os
 import sqlite3
+import uuid
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import timedelta,datetime
 from flask import (
@@ -105,7 +106,17 @@ def login():
 
     return jsonify({"message": "Login success"})
  
- 
+ # ═══════════════════════════════════════════════
+# Task 1 — Forgot Password
+# ═══════════════════════════════════════════════
+
+@app.route("/api/forgot-password", methods=["POST"])
+def forgot():
+    data = request.get_json()
+    token = uuid.uuid4().hex
+    print("Reset token:", token)
+
+    return jsonify({"message": "If email exists, reset link sent"})
  
  
  
