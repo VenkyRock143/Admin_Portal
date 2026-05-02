@@ -1,6 +1,6 @@
 # Qatar Foundation — Admin Portal
 
-A Flask-based backend for the CertifyMe Full Stack Intern Assessment.  
+A Flask-based backend full stack app.  
 The frontend UI is pre-built; this repository contains the complete backend that powers it.
 
 ---
