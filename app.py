@@ -157,7 +157,42 @@ def get_all():
     ).fetchall()
 
     return jsonify([dict(r) for r in rows])
+# ═══════════════════════════════════════════════
+# Task 2 — View Opportunity Details
+# ═══════════════════════════════════════════════
+@app.route("/api/opportunities/<int:id>", methods=["GET"])
+def get_one(id):
+    db = get_db()
+    row = db.execute(
+        "SELECT * FROM opportunities WHERE id=? AND admin_id=?",
+        (id, session["admin_id"])
+    ).fetchone()
 
+    if not row:
+        return jsonify({"error": "Not found"}), 404
+
+    return jsonify(dict(row))
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
  
  
  
